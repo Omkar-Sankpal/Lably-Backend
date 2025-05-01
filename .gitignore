@@ -1,0 +1,23 @@
+# Ignore node_modules
+node_modules/
+
+# Ignore environment files
+.env
+
+# Ignore log files
+*.log
+
+# Ignore build and temp files
+/dist
+/build
+/.next
+/.turbo
+
+# Mac system files
+.DS_Store
+
+# Windows system files
+Thumbs.db
+
+# Vscode settings
+.vscode/
