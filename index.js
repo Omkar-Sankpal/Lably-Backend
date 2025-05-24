@@ -45,16 +45,15 @@ import cors from 'cors';
 
 const app = express();
 
-// List of allowed origins (both local and production)
 const allowedOrigins = [
-  "http://localhost:5173",         // Local development
-  "https://lably-fronend.onrender.com"  // Your deployed frontend
+  "http://localhost:5173",        
+  "https://lably-fronend.onrender.com"  
 ];
 
-// CORS configuration
+
 app.use(cors({
   origin: function (origin, callback) {
-    // Allow requests with no origin (like mobile apps or curl requests)
+
     if (!origin) return callback(null, true);
     
     if (allowedOrigins.indexOf(origin) === -1) {
