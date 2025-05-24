@@ -19,11 +19,11 @@ import dotenv from 'dotenv';
 dotenv.config();
 
 const db = mysql.createConnection({
-    host: process.env.DB_HOST || 'tramway.proxy.rlwy.net', 
-    port: process.env.DB_PORT || 26140, 
-    user: process.env.DB_USER || 'root',
-    password: process.env.DB_PASS || 'zrXlcWASefxamoEooptFgIAbnQIBcJfd', 
-    database: process.env.DB_NAME || 'railway',
+    host: process.env.DB_HOST , 
+    port: process.env.DB_PORT , 
+    user: process.env.DB_USER ,
+    password: process.env.DB_PASS, 
+    database: process.env.DB_NAME ,
     ssl: {
         rejectUnauthorized: false 
     }
