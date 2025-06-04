@@ -558,6 +558,17 @@ export const getTeacher = async (req, res) => {
 export const getAssStudents = async (req, res) => {
   const { batch, a_id } = req.body;
 
+  const { data: students, error: studentError } = await supabase
+    .from('students')
+    .select('roll_no')
+    .eq('batch', batch);
+
+  if (studentError) {
+    return res.status(500).json({ error: studentError.message });
+  }
+
+  const rollNos = students.map(student => student.roll_no);
+
   const { data, error } = await supabase
     .from('student_assignments')
     .select(`
@@ -565,12 +576,14 @@ export const getAssStudents = async (req, res) => {
       students(*)
     `)
     .eq('a_id', a_id)
-    .eq('students.batch', batch);
+    .in('roll_no', rollNos); // <- Make sure this is an array
 
   if (error) return res.status(500).json({ error: error.message });
 
   res.json(data);
 };
+
+
 
 // 4. Get all assignments for a subject
 export const getAllAss = async (req, res) => {
