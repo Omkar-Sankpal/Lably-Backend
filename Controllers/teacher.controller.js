@@ -190,14 +190,21 @@ export const get_Lab_Sessions = async (req, res) => {
   }
 
   try {
-    const { data, error } = await supabase.rpc('get_distinct_lab_sessions', {
-      p_subject: subject,
-      p_batch: batch,
-    });
+    const { data, error } = await supabase
+      .from('attendance')
+      .select('lab_date, subject, batch')
+      .eq('subject', subject)
+      .eq('batch', batch)
+      .not('lab_date', 'is', null) // ✅ exclude null dates safely
+      .order('lab_date', { ascending: false });
 
     if (error) return res.status(500).json({ error });
 
-    res.status(200).json(data);
+    const uniqueSessions = Array.from(
+      new Map(data.map(item => [`${item.lab_date}_${item.subject}_${item.batch}`, item])).values()
+    );
+
+    res.status(200).json({ uniqueSessions });
   } catch (err) {
     res.status(500).json({ message: 'Unexpected error', error: err.message });
   }
