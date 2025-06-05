@@ -20,7 +20,8 @@ export const getBatchStudents = async (req, res) => {
   const { data, error } = await supabase
     .from('students')
     .select('*')
-    .eq('batch', batch);
+    .eq('batch', batch)
+    .order('roll_no', { ascending: true });
 
   if (error) {
     return res.status(500).json({ error: error.message });
@@ -247,7 +248,8 @@ export const getStudents_Attendance = async (req, res) => {
     .select('*, students(*)') // assuming foreign key exists
     .eq('subject', subject)
     .eq('batch', batch)
-    .eq('lab_date', lab_date);
+    .eq('lab_date', lab_date)
+    .order('roll_no', { ascending: true });
 
   if (error) return res.status(500).json({ error });
 
@@ -277,7 +279,8 @@ export const updateUT = async (req, res) => {
     .from('ut')
     .update({ marks1, marks2, marks3 })
     .eq('subject', subject)
-    .eq('roll_no', roll_no);
+    .eq('roll_no', roll_no)
+    .order('roll_no', { ascending: true });
 
   if (error) return res.status(500).json({ error });
 
