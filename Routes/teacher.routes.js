@@ -4,8 +4,8 @@ import { addLabSession, deleteLabSession, get_Lab_Sessions, getAllAss, getAllAss
 const router = express.Router();
 
 router.get("/get-all-students", getAllStudents);
-router.get("/get-all-assignments", getAllAssignments);
 router.post("/get-batch-students", getBatchStudents);
+router.get("/get-all-assignments", getAllAssignments);
 router.post("/get-teacher", getTeacher); 
 router.post("/get-ass-students", getAssStudents); 
 router.post("/get-ass", getAllAss);

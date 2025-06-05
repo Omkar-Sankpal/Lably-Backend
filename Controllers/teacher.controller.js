@@ -1,3 +1,408 @@
+// GET all students
+import supabase from '../DB/db.js';
+
+export const getAllStudents = async (req, res) => {
+  const { data, error } = await supabase
+    .from('students')
+    .select('*');
+
+  if (error) {
+    return res.status(500).json({ error: error.message });
+  }
+
+  res.json(data);
+}; // tested on postman working fine (Omkar Sankpal)
+
+// GET students by batch
+export const getBatchStudents = async (req, res) => {
+  const { batch } = req.body;
+
+  const { data, error } = await supabase
+    .from('students')
+    .select('*')
+    .eq('batch', batch);
+
+  if (error) {
+    return res.status(500).json({ error: error.message });
+  }
+
+  res.json(data);
+};// tested on postman working fine (Omkar Sankpal)
+
+// 1. Get all assignments
+export const getAllAssignments = async (req, res) => {
+  const { data, error } = await supabase
+    .from('assignment')
+    .select('*');
+
+  if (error) return res.status(500).json({ error: error.message });
+  res.json(data);
+};// tested on postman working fine (Omkar Sankpal)
+
+// 2. Get teacher details + batch info
+export const getTeacher = async (req, res) => {
+  const { teacherId, password } = req.body;
+
+  const { data, error } = await supabase
+    .from('teachers')
+    .select(`
+      *,
+      batch_details(*)
+    `)
+    .eq('t_id', teacherId);
+
+  if (error) return res.status(500).json({ error: error.message });
+
+  if (!data || data.length === 0)
+    return res.status(404).json({ message: 'Teacher not found' });
+
+  if (data[0].password !== password)
+    return res.status(401).json({ message: 'Incorrect password' });
+
+  res.status(200).json(data);
+};// tested on postman working fine (Omkar Sankpal)
+
+// 3. Get students in assignment
+export const getAssStudents = async (req, res) => {
+  const { batch, a_id } = req.body;
+
+  const { data: students, error: studentError } = await supabase
+    .from('students')
+    .select('roll_no')
+    .eq('batch', batch)
+    .order('roll_no', { ascending: true });
+
+  if (studentError) {
+    return res.status(500).json({ error: studentError.message });
+  }
+
+  const rollNos = students.map(student => student.roll_no);
+
+  const { data, error } = await supabase
+    .from('student_assignments')
+    .select(`
+      *,
+      students(*)
+    `)
+    .eq('a_id', a_id)
+    .in('roll_no', rollNos)
+    .order('roll_no', { ascending: true }); // <- Make sure this is an array
+
+  if (error) return res.status(500).json({ error: error.message });
+
+  res.json(data);
+};//data was not being sent in order (added .order(roll no)) fixed the issue 
+
+// 4. Get all assignments for a subject
+export const getAllAss = async (req, res) => {
+  const { subject } = req.body;
+
+  const { data, error } = await supabase
+    .from('assignment')
+    .select('*')
+    .eq('subject', subject);
+
+  if (error) return res.status(500).json({ error: error.message });
+
+  res.json(data);
+};// tested on postman working fine (Omkar Sankpal)
+
+// 5. Update student assignment
+export const updateStudent = async (req, res) => {
+  const { dos, dop, marks1, marks2, status, roll_no, a_id } = req.body;
+
+  const { data, error } = await supabase
+    .from('student_assignments')
+    .update({ dos, dop, marks1, marks2, status })
+    .eq('roll_no', roll_no)
+    .eq('a_id', a_id);
+
+  if (error) return res.status(500).json({ error: error.message });
+
+  res.json(data);
+};// tested on postman working fine (Omkar Sankpal)
+
+// 6. Insert new assignment
+export const insertAssignment = async (req, res) => {
+  const { subject, title, count } = req.body;
+
+  const formattedCount = String(count).padStart(3, '0');
+  const a_id = subject + formattedCount;
+
+  const allowedSubjects = ['CGL', 'PBL', 'DMSL', 'EM-III', 'PSDL'];
+  if (!allowedSubjects.includes(subject)) {
+    return res.status(400).json({
+      success: false,
+      message: 'Invalid subject provided!',
+    });
+  }
+
+  const { data, error } = await supabase
+    .from('assignment')
+    .insert([{ a_id, subject, title }]);
+
+  if (error) return res.status(500).json({ error: error.message });
+
+  res.json(data);
+}; //functionality on halt 
+
+export const addLabSession = async (req, res) => {
+  const { date, subject, t_id, start_roll, end_roll } = req.body;
+
+  if (!date || !subject || !t_id || !start_roll || !end_roll) {
+    return res.status(400).json({
+      success: false,
+      message: "Please fill in all the details!",
+    });
+  }
+
+  try {
+    const { data, error } = await supabase.rpc('init_lab', {
+      input: {
+        date: date,
+        subject: subject,
+        t_id: t_id,
+        start_roll: start_roll,
+        end_roll: end_roll
+      }
+    });
+
+    if (error) return res.status(500).json({ error: error.message });
+
+    res.status(200).json({
+      success: true,
+      message: "Lab session initialized successfully",
+      data,
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};//Working good Tested but still need to check and confirm
+
+export const get_Lab_Sessions = async (req, res) => {
+  const { subject, batch } = req.body;
+
+  if (!subject || !batch) {
+    return res.status(400).json({
+      success: false,
+      message: "Subject or Batch not found",
+    });
+  }
+
+  try {
+    const { data, error } = await supabase.rpc('get_distinct_lab_sessions', {
+      p_subject: subject,
+      p_batch: batch,
+    });
+
+    if (error) return res.status(500).json({ error });
+
+    res.status(200).json(data);
+  } catch (err) {
+    res.status(500).json({ message: 'Unexpected error', error: err.message });
+  }
+};// Created a funciton in postgre and then fetched lab dates 
+
+export const deleteLabSession = async (req, res) => {
+  const { subject, batch, lab_date } = req.body;
+
+  if (!subject || !batch || !lab_date) {
+    return res.status(400).json({
+      success: false,
+      message: "Missing required fields",
+    });
+  }
+
+  const { error } = await supabase
+    .from('attendance')
+    .delete()
+    .eq('subject', subject)
+    .eq('batch', batch)
+    .eq('lab_date', lab_date);
+
+  if (error) return res.status(500).json({ error });
+
+  res.json({ success: true, message: "Lab session deleted" });
+};// tested on postman working fine (Omkar Sankpal)
+
+export const getStudents_Attendance = async (req, res) => {
+  const { subject, batch, lab_date } = req.body;
+
+  if (!subject || !batch || !lab_date) {
+    return res.status(400).json({
+      success: false,
+      message: "Missing required fields",
+    });
+  }
+
+  const { data, error } = await supabase
+    .from('attendance')
+    .select('*, students(*)') // assuming foreign key exists
+    .eq('subject', subject)
+    .eq('batch', batch)
+    .eq('lab_date', lab_date);
+
+  if (error) return res.status(500).json({ error });
+
+  res.json({ success: true, data });
+};// tested on postman working fine (Omkar Sankpal)get-students-attendance
+
+export const updateAttendance = async (req, res) => {
+  const { present, roll_no, subject, batch, lab_date } = req.body;
+
+  const { error } = await supabase
+    .from('attendance')
+    .update({ present })
+    .eq('roll_no', roll_no)
+    .eq('subject', subject)
+    .eq('batch', batch)
+    .eq('lab_date', lab_date);
+
+  if (error) return res.status(500).json({ error });
+
+  res.json({ success: true, message: "Attendance updated" });
+};
+
+export const updateUT = async (req, res) => {
+  const { marks1, marks2, marks3, subject, roll_no } = req.body;
+
+  const { error } = await supabase
+    .from('ut')
+    .update({ marks1, marks2, marks3 })
+    .eq('subject', subject)
+    .eq('roll_no', roll_no);
+
+  if (error) return res.status(500).json({ error });
+
+  res.json({ success: true, message: "UT updated" });
+};
+
+export const getUt = async (req, res) => {
+  const { subject, batch } = req.body;
+
+  if (!subject || !batch) {
+    return res.status(400).json({
+      success: false,
+      message: "Missing required fields to fetch UT marks",
+    });
+  }
+
+  try {
+    const { data, error } = await supabase
+      .from('ut')
+      .select('*')
+      .eq('subject', subject)
+      .eq('batch', batch);
+
+    if (error) return res.status(500).json({ success: false, error });
+
+    res.status(200).json({
+      success: true,
+      message: "Students Marks fetched",
+      data,
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err });
+  }
+};
+
+export const termWork1 = async (req, res) => {
+  const { subject, batch, roll_no } = req.body;
+
+  if (!subject || !batch || !roll_no) {
+    return res.status(400).json({
+      success: false,
+      message: "Missing required fields for TW1 calculation",
+    });
+  }
+
+  try {
+    const { data, error } = await supabase.rpc('calculate_tw1', {
+      p_subject: subject,
+      p_batch: batch,
+      p_roll_no: roll_no,
+    });
+
+    if (error) return res.status(500).json({ success: false, error });
+
+    res.status(200).json({
+      success: true,
+      message: "TW1 Marks Calculated",
+      data,
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err });
+  }
+};
+
+export const tw2 = async (req, res) => {
+  const { subject, batch, roll_no } = req.body;
+
+  if (!subject || !batch || !roll_no) {
+    return res.status(400).json({
+      success: false,
+      message: "Missing required fields for TW2 calculation",
+    });
+  }
+
+  try {
+    const { data, error } = await supabase.rpc('calculate_tw2', {
+      p_subject: subject,
+      p_batch: batch,
+      p_roll_no: roll_no,
+    });
+
+    if (error) return res.status(500).json({ success: false, error });
+
+    res.status(200).json({
+      success: true,
+      message: "TW2 Marks Calculated",
+      data,
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err });
+  }
+};
+
+export const tw3 = async (req, res) => {
+  const { subject, roll_no } = req.body;
+
+  if (!subject || !roll_no) {
+    return res.status(400).json({
+      success: false,
+      message: "Missing required fields for TW3 calculation",
+    });
+  }
+
+  try {
+    const { data, error } = await supabase
+      .from('ut')
+      .select('roll_no, student_name, subject, marks1, marks2, marks3')
+      .eq('subject', subject)
+      .eq('roll_no', roll_no)
+      .single();
+
+    if (error) return res.status(500).json({ success: false, error });
+
+    const total_marks =
+      (data?.marks1 || 0) + (data?.marks2 || 0) + (data?.marks3 || 0);
+
+    res.status(200).json({
+      success: true,
+      message: "TW3 Marks Calculated",
+      data: {
+        ...data,
+        total_marks,
+      },
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err });
+  }
+};
+
+/*
+End-Point with MYSQL DB (was deployed earlier but the free trial on railway ended !! Hence had to shift to Postgre with Supabase)
+
 // import db from '../DB/db.js'
 
 // export const getAllStudents = (req, res) => {
@@ -489,411 +894,4 @@
 //     }
 // }
 
-// GET all students
-import supabase from '../DB/db.js';
-
-export const getAllStudents = async (req, res) => {
-  const { data, error } = await supabase
-    .from('students')
-    .select('*');
-
-  if (error) {
-    return res.status(500).json({ error: error.message });
-  }
-
-  res.json(data);
-};
-
-// GET students by batch
-export const getBatchStudents = async (req, res) => {
-  const { batch } = req.body;
-
-  const { data, error } = await supabase
-    .from('students')
-    .select('*')
-    .eq('batch', batch);
-
-  if (error) {
-    return res.status(500).json({ error: error.message });
-  }
-
-  res.json(data);
-};
-
-
-// 1. Get all assignments
-export const getAllAssignments = async (req, res) => {
-  const { data, error } = await supabase
-    .from('assignment')
-    .select('*');
-
-  if (error) return res.status(500).json({ error: error.message });
-  res.json(data);
-};
-
-// 2. Get teacher details + batch info
-export const getTeacher = async (req, res) => {
-  const { teacherId, password } = req.body;
-
-  const { data, error } = await supabase
-    .from('teachers')
-    .select(`
-      *,
-      batch_details(*)
-    `)
-    .eq('t_id', teacherId);
-
-  if (error) return res.status(500).json({ error: error.message });
-
-  if (!data || data.length === 0)
-    return res.status(404).json({ message: 'Teacher not found' });
-
-  if (data[0].password !== password)
-    return res.status(401).json({ message: 'Incorrect password' });
-
-  res.status(200).json(data);
-};
-
-// 3. Get students in assignment
-export const getAssStudents = async (req, res) => {
-  const { batch, a_id } = req.body;
-
-  const { data: students, error: studentError } = await supabase
-    .from('students')
-    .select('roll_no')
-    .eq('batch', batch);
-
-  if (studentError) {
-    return res.status(500).json({ error: studentError.message });
-  }
-
-  const rollNos = students.map(student => student.roll_no);
-
-  const { data, error } = await supabase
-    .from('student_assignments')
-    .select(`
-      *,
-      students(*)
-    `)
-    .eq('a_id', a_id)
-    .in('roll_no', rollNos); // <- Make sure this is an array
-
-  if (error) return res.status(500).json({ error: error.message });
-
-  res.json(data);
-};
-
-
-
-// 4. Get all assignments for a subject
-export const getAllAss = async (req, res) => {
-  const { subject } = req.body;
-
-  const { data, error } = await supabase
-    .from('assignment')
-    .select('*')
-    .eq('subject', subject);
-
-  if (error) return res.status(500).json({ error: error.message });
-
-  res.json(data);
-};
-
-// 5. Update student assignment
-export const updateStudent = async (req, res) => {
-  const { dos, dop, marks1, marks2, status, roll_no, a_id } = req.body;
-
-  const { data, error } = await supabase
-    .from('student_assignments')
-    .update({ dos, dop, marks1, marks2, status })
-    .eq('roll_no', roll_no)
-    .eq('a_id', a_id);
-
-  if (error) return res.status(500).json({ error: error.message });
-
-  res.json(data);
-};
-
-// 6. Insert new assignment
-export const insertAssignment = async (req, res) => {
-  const { subject, title, count } = req.body;
-
-  const formattedCount = String(count).padStart(3, '0');
-  const a_id = subject + formattedCount;
-
-  const allowedSubjects = ['CGL', 'PBL', 'DMSL', 'EM-III', 'PSDL'];
-  if (!allowedSubjects.includes(subject)) {
-    return res.status(400).json({
-      success: false,
-      message: 'Invalid subject provided!',
-    });
-  }
-
-  const { data, error } = await supabase
-    .from('assignment')
-    .insert([{ a_id, subject, title }]);
-
-  if (error) return res.status(500).json({ error: error.message });
-
-  res.json(data);
-};
-
-
-export const addLabSession = async (req, res) => {
-  const { date, subject, t_id, start_roll, end_roll } = req.body;
-
-  if (!date || !subject || !t_id || !start_roll || !end_roll) {
-    return res.status(400).json({
-      success: false,
-      message: "Please fill in all the details!",
-    });
-  }
-
-  try {
-    const { data, error } = await supabase.rpc('init_lab', {
-      input: {
-        date: date,
-        subject: subject,
-        t_id: t_id,
-        start_roll: start_roll,
-        end_roll: end_roll
-      }
-    });
-
-    if (error) return res.status(500).json({ error: error.message });
-
-    res.status(200).json({
-      success: true,
-      message: "Lab session initialized successfully",
-      data,
-    });
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-};
-
-
-export const get_Lab_Sessions = async (req, res) => {
-  const { subject, batch } = req.body;
-
-  if (!subject || !batch) {
-    return res.status(400).json({
-      success: false,
-      message: "Subject or Batch not found",
-    });
-  }
-
-  try {
-    const { data, error } = await supabase
-      .from('attendance')
-      .select('subject, batch, lab_date')
-      .eq('subject', subject)
-      .eq('batch', batch)
-      .group('lab_date');
-
-    if (error) return res.status(500).json({ error });
-
-    res.status(200).json(data);
-  } catch (err) {
-    res.status(500).json({ message: 'Unexpected error', error: err });
-  }
-};
-
-export const deleteLabSession = async (req, res) => {
-  const { subject, batch, lab_date } = req.body;
-
-  if (!subject || !batch || !lab_date) {
-    return res.status(400).json({
-      success: false,
-      message: "Missing required fields",
-    });
-  }
-
-  const { error } = await supabase
-    .from('attendance')
-    .delete()
-    .eq('subject', subject)
-    .eq('batch', batch)
-    .eq('lab_date', lab_date);
-
-  if (error) return res.status(500).json({ error });
-
-  res.json({ success: true, message: "Lab session deleted" });
-};
-
-export const getStudents_Attendance = async (req, res) => {
-  const { subject, batch, lab_date } = req.body;
-
-  if (!subject || !batch || !lab_date) {
-    return res.status(400).json({
-      success: false,
-      message: "Missing required fields",
-    });
-  }
-
-  const { data, error } = await supabase
-    .from('attendance')
-    .select('*, students(*)') // assuming foreign key exists
-    .eq('subject', subject)
-    .eq('batch', batch)
-    .eq('lab_date', lab_date);
-
-  if (error) return res.status(500).json({ error });
-
-  res.json({ success: true, data });
-};
-
-export const updateAttendance = async (req, res) => {
-  const { present, roll_no, subject, batch, lab_date } = req.body;
-
-  const { error } = await supabase
-    .from('attendance')
-    .update({ present })
-    .eq('roll_no', roll_no)
-    .eq('subject', subject)
-    .eq('batch', batch)
-    .eq('lab_date', lab_date);
-
-  if (error) return res.status(500).json({ error });
-
-  res.json({ success: true, message: "Attendance updated" });
-};
-
-export const updateUT = async (req, res) => {
-  const { marks1, marks2, marks3, subject, roll_no } = req.body;
-
-  const { error } = await supabase
-    .from('ut')
-    .update({ marks1, marks2, marks3 })
-    .eq('subject', subject)
-    .eq('roll_no', roll_no);
-
-  if (error) return res.status(500).json({ error });
-
-  res.json({ success: true, message: "UT updated" });
-};
-
-
-
-
-export const getUt = async (req, res) => {
-  const { subject, batch } = req.body;
-
-  if (!subject || !batch) {
-    return res.status(400).json({
-      success: false,
-      message: "Missing required fields to fetch UT marks",
-    });
-  }
-
-  try {
-    const { data, error } = await supabase
-      .from('ut')
-      .select('*')
-      .eq('subject', subject)
-      .eq('batch', batch);
-
-    if (error) return res.status(500).json({ success: false, error });
-
-    res.status(200).json({
-      success: true,
-      message: "Students Marks fetched",
-      data,
-    });
-  } catch (err) {
-    res.status(500).json({ success: false, error: err });
-  }
-};
-
-export const termWork1 = async (req, res) => {
-  const { subject, batch, roll_no } = req.body;
-
-  if (!subject || !batch || !roll_no) {
-    return res.status(400).json({
-      success: false,
-      message: "Missing required fields for TW1 calculation",
-    });
-  }
-
-  try {
-    const { data, error } = await supabase.rpc('calculate_tw1', {
-      p_subject: subject,
-      p_batch: batch,
-      p_roll_no: roll_no,
-    });
-
-    if (error) return res.status(500).json({ success: false, error });
-
-    res.status(200).json({
-      success: true,
-      message: "TW1 Marks Calculated",
-      data,
-    });
-  } catch (err) {
-    res.status(500).json({ success: false, error: err });
-  }
-};
-
-export const tw2 = async (req, res) => {
-  const { subject, batch, roll_no } = req.body;
-
-  if (!subject || !batch || !roll_no) {
-    return res.status(400).json({
-      success: false,
-      message: "Missing required fields for TW2 calculation",
-    });
-  }
-
-  try {
-    const { data, error } = await supabase.rpc('calculate_tw2', {
-      p_subject: subject,
-      p_batch: batch,
-      p_roll_no: roll_no,
-    });
-
-    if (error) return res.status(500).json({ success: false, error });
-
-    res.status(200).json({
-      success: true,
-      message: "TW2 Marks Calculated",
-      data,
-    });
-  } catch (err) {
-    res.status(500).json({ success: false, error: err });
-  }
-};
-export const tw3 = async (req, res) => {
-  const { subject, roll_no } = req.body;
-
-  if (!subject || !roll_no) {
-    return res.status(400).json({
-      success: false,
-      message: "Missing required fields for TW3 calculation",
-    });
-  }
-
-  try {
-    const { data, error } = await supabase
-      .from('ut')
-      .select('roll_no, student_name, subject, marks1, marks2, marks3')
-      .eq('subject', subject)
-      .eq('roll_no', roll_no)
-      .single();
-
-    if (error) return res.status(500).json({ success: false, error });
-
-    const total_marks =
-      (data?.marks1 || 0) + (data?.marks2 || 0) + (data?.marks3 || 0);
-
-    res.status(200).json({
-      success: true,
-      message: "TW3 Marks Calculated",
-      data: {
-        ...data,
-        total_marks,
-      },
-    });
-  } catch (err) {
-    res.status(500).json({ success: false, error: err });
-  }
-};
+*/
