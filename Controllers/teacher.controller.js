@@ -302,7 +302,8 @@ export const getUt = async (req, res) => {
       .from('ut')
       .select('*')
       .eq('subject', subject)
-      .eq('batch', batch);
+      .eq('batch', batch)
+      .order('roll_no', { ascending: true });
 
     if (error) return res.status(500).json({ success: false, error });
 
@@ -314,7 +315,7 @@ export const getUt = async (req, res) => {
   } catch (err) {
     res.status(500).json({ success: false, error: err });
   }
-};
+};//// tested on postman working fine (Omkar Sankpal)
 
 export const termWork1 = async (req, res) => {
   const { subject, batch, roll_no } = req.body;
